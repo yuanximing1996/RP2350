@@ -131,6 +131,13 @@ rp2350/relay6ch/yuanximing/state
 {"status":"online"}
 ```
 
+串口日志会显示：
+
+```text
+Online heartbeat: heartbeat
+Published: {"status":"online"} -> rp2350/relay6ch/yuanximing/state
+```
+
 ## 正常启动日志
 
 正常运行时，串口日志类似：
@@ -141,6 +148,7 @@ Connection successful!
 IP address: 192.168.x.x
 MQTT connection successful!
 Subscribe to topic: rp2350/relay6ch/yuanximing/set
+Online heartbeat: startup
 Published: {"status":"online"} -> rp2350/relay6ch/yuanximing/state
 ```
 

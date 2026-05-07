@@ -43,7 +43,7 @@ MQTT_SSL = False
 MQTT_SSL_PARAMS = None
 MQTT_PING_INTERVAL_MS = (MQTT_KEEPALIVE * 1000) // 2
 MQTT_ONLINE_HEARTBEAT_MS = 60000
-last_message_ms = ticks_ms()
+last_recv_ms = ticks_ms()
 
 MQTT_ERROR_CODES = {
     1: "unacceptable protocol version",
@@ -116,7 +116,7 @@ def mqtt_start():
         raise RuntimeError("MQTT connection failed")
     client.set_callback(mqtt_recv_callback)
     mqtt_subscribe(client, MQTT_SUB_TOPIC)
-    mqtt_publish(client, MQTT_PUB_TOPIC, '{"status":"online"}', retain=True)
+    mqtt_publish_online(client, "startup")
     return client
 
 def mqtt_reconnect(old_client=None):
@@ -139,13 +139,19 @@ def mqtt_publish(client, topic, message, retain=False, qos=0):
     try:
         client.publish(topic, message, retain=retain, qos=qos)
         print(f"Published: {message} -> {topic}")
+        return True
     except Exception as e:
         print("Publish error:", e)
+        return False
+
+def mqtt_publish_online(client, reason="heartbeat"):
+    print("Online heartbeat:", reason)
+    return mqtt_publish(client, MQTT_PUB_TOPIC, '{"status":"online"}', retain=True)
     
 # Callback function that runs when you receive a message on subscribed topic
 def mqtt_recv_callback(topic, message):
-    global last_message_ms
-    last_message_ms = ticks_ms()
+    global last_recv_ms
+    last_recv_ms = ticks_ms()
 
     try:
         msg = ujson.loads(message.decode('utf-8'))
@@ -191,7 +197,7 @@ try:
         # Connect to MQTT broker, start MQTT client
         client = mqtt_start()
         last_ping = ticks_ms()
-        last_message_ms = ticks_ms()
+        last_recv_ms = ticks_ms()
         
         # Continuously checking for messages
         while True:
@@ -210,12 +216,21 @@ try:
                 last_ping = ticks_ms()
 
             if ticks_diff(ticks_ms(), last_ping) >= MQTT_PING_INTERVAL_MS:
-                client.ping()
-                last_ping = ticks_ms()
+                try:
+                    client.ping()
+                    last_ping = ticks_ms()
+                except Exception as e:
+                    print("MQTT ping error:", e)
+                    client = mqtt_reconnect(client)
+                    last_ping = ticks_ms()
 
-            if ticks_diff(ticks_ms(), last_message_ms) >= MQTT_ONLINE_HEARTBEAT_MS:
-                mqtt_publish(client, MQTT_PUB_TOPIC, '{"status":"online"}', retain=True)
-                last_message_ms = ticks_ms()
+            if ticks_diff(ticks_ms(), last_recv_ms) >= MQTT_ONLINE_HEARTBEAT_MS:
+                if mqtt_publish_online(client):
+                    last_recv_ms = ticks_ms()
+                else:
+                    client = mqtt_reconnect(client)
+                    last_ping = ticks_ms()
+                    last_recv_ms = ticks_ms()
             sleep(0.1)
             
 except Exception as e:
