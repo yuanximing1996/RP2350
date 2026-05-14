@@ -28,12 +28,12 @@ def set_all_relays(state):
         RELAYS[i].value(state)
     print(f"ALL CH set to {'ON' if state else 'OFF'}")
 
-# Build relay status snapshot payload
-def get_relay_states():
-    states = {}
+# Build relay state payload with fixed key order: CH1..CH6
+def get_relay_states_payload():
+    pairs = []
     for i in range(len(RELAYS)):
-        states[f"CH{i + 1}"] = RELAYS[i].value()
-    return states
+        pairs.append('"CH{}":{}'.format(i + 1, RELAYS[i].value()))
+    return '{' + ','.join(pairs) + '}'
 
 # Constants for MQTT Topics
 MQTT_SUB_TOPIC = 'rp2350/relay6ch/yuanximing/set'
@@ -182,7 +182,18 @@ def mqtt_publish_online(client, reason="heartbeat"):
 
 def mqtt_publish_state_snapshot(client, reason="state"):
     print("State snapshot:", reason)
-    payload = ujson.dumps({"data": get_relay_states()})
+    payload = '{"data":%s}' % get_relay_states_payload()
+    return mqtt_publish(client, MQTT_PUB_TOPIC, payload, retain=True, qos=MQTT_PUB_QOS)
+
+def mqtt_publish_control_reply(client, action, ok=True, reason=None):
+    status = "ok" if ok else "error"
+    payload = '{{"action":"{0}","status":"{1}","data":{2}}}'.format(
+        action, status, get_relay_states_payload()
+    )
+    if reason is not None:
+        payload = '{{"action":"{0}","status":"{1}","reason":"{2}","data":{3}}}'.format(
+            action, status, reason, get_relay_states_payload()
+        )
     return mqtt_publish(client, MQTT_PUB_TOPIC, payload, retain=True, qos=MQTT_PUB_QOS)
     
 # Callback function that runs when you receive a message on subscribed topic
@@ -197,38 +208,58 @@ def mqtt_recv_callback(topic, message):
 
         msg = ujson.loads(message.decode('utf-8'))
         if msg.get("cmd") == "get_state":
-            mqtt_publish_state_snapshot(client, "get_state")
+            mqtt_publish_control_reply(client, "get_state", True, "ok")
             return
 
         data = msg.get("data", {})
         
         if not data or not isinstance(data, dict):
             print("Error: 'data' field missing")
+            mqtt_publish_control_reply(client, "set", False, "invalid_data")
             return
             
+        has_valid_key = False
+        has_invalid_key = False
         for key, value in data.items():
             if value not in (0, 1):
                 print(f"Error: Value must be 0 or 1, got {value}")
+                has_invalid_key = True
                 continue
                 
             if key.startswith("CH"):
-                relay_num = int(key[2:])
+                try:
+                    relay_num = int(key[2:])
+                except ValueError:
+                    print(f"Error: Invalid relay key '{key}'")
+                    has_invalid_key = True
+                    continue
                 if 1 <= relay_num <= 6:
                     set_relay(relay_num, value)
+                    has_valid_key = True
                 else:
                     print(f"Error: Relay number must be 1-6, got {relay_num}")
+                    has_invalid_key = True
             elif key == "ALL":
                 set_all_relays(value)
+                has_valid_key = True
             else:
                 print(f"Error: Unknown key '{key}'")
+                has_invalid_key = True
 
-        if mqtt_publish_state_snapshot(client, "command"):
-            print("Command state snapshot published")
+        if has_invalid_key:
+            if has_valid_key:
+                mqtt_publish_control_reply(client, "set", False, "partial_success")
+            else:
+                mqtt_publish_control_reply(client, "set", False, "invalid_command")
+        else:
+            mqtt_publish_control_reply(client, "set", True, "ok")
             
     except ValueError as e:
         print("JSON decode error:", e)
+        mqtt_publish_control_reply(client, "set", False, "invalid_json")
     except Exception as e:
         print("Unexpected error:", e)
+        mqtt_publish_control_reply(client, "set", False, "error")
     
 try:
     # Initialize RELAY
