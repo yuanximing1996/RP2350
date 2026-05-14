@@ -116,7 +116,7 @@ def mqtt_connect():
                             keepalive=MQTT_KEEPALIVE,
                             ssl=MQTT_SSL,
                             ssl_params=MQTT_SSL_PARAMS)
-        client.set_last_will(MQTT_PUB_TOPIC, MQTT_STATUS_OFFLINE, retain=True, qos=MQTT_PUB_QOS)
+        client.set_last_will(MQTT_PUB_TOPIC, MQTT_STATUS_OFFLINE, qos=MQTT_PUB_QOS)
         client.connect()
         print("MQTT connection successful!")
         return client
@@ -133,11 +133,22 @@ def mqtt_subscribe(client, topic):
     client.subscribe(topic, qos=MQTT_SUB_QOS)
     print('Subscribe to topic:', topic)
 
+def mqtt_clear_retained_state(client):
+    try:
+        client.publish(MQTT_PUB_TOPIC, b"", retain=True, qos=MQTT_PUB_QOS)
+        print("Cleared retained state on topic:", MQTT_PUB_TOPIC)
+        return True
+    except Exception as e:
+        print("Clear retained state error:", e)
+        return False
+
 def mqtt_start():
     client = mqtt_connect()
     if client is None:
         raise RuntimeError("MQTT connection failed")
     client.set_callback(mqtt_recv_callback)
+    if not mqtt_clear_retained_state(client):
+        raise RuntimeError("Failed to clear retained state")
     mqtt_subscribe(client, MQTT_SUB_TOPIC)
     mqtt_publish_online(client, "startup")
     if not mqtt_publish_state_snapshot(client, "startup"):
@@ -167,9 +178,9 @@ def mqtt_reconnect(old_client=None):
             backoff_ms = min(MQTT_RECONNECT_MAX_DELAY_MS, backoff_ms * 2)
     
 # Publish MQTT message
-def mqtt_publish(client, topic, message, retain=False, qos=0):
+def mqtt_publish(client, topic, message, qos=MQTT_PUB_QOS):
     try:
-        client.publish(topic, message, retain=retain, qos=qos)
+        client.publish(topic, message, qos=qos)
         print(f"Published: {message} -> {topic}")
         return True
     except Exception as e:
@@ -178,12 +189,12 @@ def mqtt_publish(client, topic, message, retain=False, qos=0):
 
 def mqtt_publish_online(client, reason="heartbeat"):
     print("Online heartbeat:", reason)
-    return mqtt_publish(client, MQTT_PUB_TOPIC, MQTT_STATUS_ONLINE, retain=False, qos=MQTT_PUB_QOS)
+    return mqtt_publish(client, MQTT_PUB_TOPIC, MQTT_STATUS_ONLINE)
 
 def mqtt_publish_state_snapshot(client, reason="state"):
     print("State snapshot:", reason)
     payload = get_relay_states_payload()
-    return mqtt_publish(client, MQTT_PUB_TOPIC, payload, retain=True, qos=MQTT_PUB_QOS)
+    return mqtt_publish(client, MQTT_PUB_TOPIC, payload)
 
 def mqtt_publish_control_reply(client, action, ok=True, reason=None):
     if ok:
@@ -200,7 +211,7 @@ def mqtt_publish_control_reply(client, action, ok=True, reason=None):
             RELAYS[5].value(),
         )
     _ = action
-    return mqtt_publish(client, MQTT_PUB_TOPIC, payload, retain=True, qos=MQTT_PUB_QOS)
+    return mqtt_publish(client, MQTT_PUB_TOPIC, payload)
     
 # Callback function that runs when you receive a message on subscribed topic
 def mqtt_recv_callback(topic, message):

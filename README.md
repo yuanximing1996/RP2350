@@ -48,6 +48,13 @@ rp2350/relay6ch/yuanximing/set
 rp2350/relay6ch/yuanximing/state
 ```
 
+说明：
+
+- 控制主题订阅使用 `QoS 1`
+- 状态主题发布使用 `QoS 1`
+- 所有状态消息都不使用 `retain`
+- 程序启动时会先清理一次 broker 中该状态主题的历史 retained 消息
+
 ## 控制指令
 
 向下面这个主题发布 JSON 消息：
