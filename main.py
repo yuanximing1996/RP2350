@@ -41,7 +41,6 @@ MQTT_PUB_TOPIC = 'rp2350/relay6ch/yuanximing/state'
 
 # MQTT status payloads
 MQTT_STATUS_ONLINE = '{"status":"online"}'
-MQTT_STATUS_OFFLINE = '{"status":"offline"}'
 
 # MQTT Parameters
 MQTT_SERVER = config.mqtt_server
@@ -53,7 +52,7 @@ MQTT_KEEPALIVE = config.mqtt_keepalive
 MQTT_SSL = False  
 MQTT_SSL_PARAMS = None
 MQTT_SUB_QOS = 1
-MQTT_PUB_QOS = 1
+MQTT_PUB_QOS = 0
 MQTT_PING_INTERVAL_MS = (MQTT_KEEPALIVE * 1000) // 2
 MQTT_ONLINE_HEARTBEAT_MS = 60000
 WIFI_CONNECT_TIMEOUT_S = 10
@@ -79,6 +78,12 @@ def is_no_pending_mqtt_message(error):
 def initialize_wifi(ssid, password):
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
+    try:
+        # Disable Wi-Fi power saving to reduce MQTT receive latency on Pico W / RP2350 W.
+        wlan.config(pm=0xA11140)
+        print("Wi-Fi power save disabled")
+    except Exception as e:
+        print("Wi-Fi power save config skipped:", e)
 
     for attempt in range(1, WIFI_RETRY_ATTEMPTS + 1):
         # Connect to the network
@@ -116,7 +121,6 @@ def mqtt_connect():
                             keepalive=MQTT_KEEPALIVE,
                             ssl=MQTT_SSL,
                             ssl_params=MQTT_SSL_PARAMS)
-        client.set_last_will(MQTT_PUB_TOPIC, MQTT_STATUS_OFFLINE, qos=MQTT_PUB_QOS)
         client.connect()
         print("MQTT connection successful!")
         return client
@@ -323,7 +327,7 @@ try:
                 client = mqtt_reconnect(client)
                 last_ping = ticks_ms()
                 last_recv_ms = ticks_ms()
-        sleep(0.1)
+        sleep(0.01)
 
 except Exception as e:
     print('Error:', e)
