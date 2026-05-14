@@ -1,4 +1,4 @@
-# RP2350 六路继电器 MQTT 控制
+﻿# RP2350 六路继电器 MQTT 控制
 
 本项目用于通过 MQTT 控制 Waveshare RP2350 Relay 6CH 继电器板。
 
@@ -86,6 +86,18 @@ rp2350/relay6ch/yuanximing/set
 {"data":{"ALL":1}}
 ```
 
+一次性下发多路：
+
+```json
+{"data":{"CH1":1,"CH2":0,"CH3":1}}
+```
+
+查询当前状态：
+
+```json
+{"cmd":"get_state"}
+```
+
 支持的通道：
 
 - `CH1`
@@ -103,7 +115,7 @@ rp2350/relay6ch/yuanximing/set
 
 ## 状态上报
 
-设备执行控制指令后，会向状态主题发布执行结果：
+设备执行控制指令后，或执行查询指令后，会向状态主题发布全量执行结果：
 
 ```text
 rp2350/relay6ch/yuanximing/state
@@ -112,17 +124,19 @@ rp2350/relay6ch/yuanximing/state
 示例：
 
 ```json
-{"CH1":1}
-```
-
-```json
-{"ALL":0}
+{"data":{"CH1":1,"CH2":0,"CH3":0,"CH4":0,"CH5":0,"CH6":0}}
 ```
 
 设备启动并成功连接 MQTT 后，会发布：
 
 ```json
 {"status":"online"}
+```
+
+启动时还会发布一次全量状态：
+
+```json
+{"data":{"CH1":0,"CH2":0,"CH3":0,"CH4":0,"CH5":0,"CH6":0}}
 ```
 
 如果设备连续 60 秒没有收到 MQTT 控制消息，也会再次发布在线心跳：
