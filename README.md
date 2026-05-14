@@ -115,7 +115,7 @@ rp2350/relay6ch/yuanximing/set
 
 ## 状态上报
 
-设备执行控制指令后，或执行查询指令后，会向状态主题发布执行结果：
+设备执行控制指令后，或执行查询指令后，会向状态主题发布状态：
 
 ```text
 rp2350/relay6ch/yuanximing/state
@@ -124,7 +124,7 @@ rp2350/relay6ch/yuanximing/state
 示例：
 
 ```json
-{"action":"set","status":"ok","data":{"CH1":1,"CH2":0,"CH3":1,"CH4":0,"CH5":0,"CH6":0}}
+{"CH1":1,"CH2":0,"CH3":1,"CH4":0,"CH5":0,"CH6":0}
 ```
 
 设备启动并成功连接 MQTT 后，会发布：
@@ -136,19 +136,19 @@ rp2350/relay6ch/yuanximing/state
 启动时还会发布一次全量状态：
 
 ```json
-{"data":{"CH1":0,"CH2":0,"CH3":0,"CH4":0,"CH5":0,"CH6":0}}
+{"CH1":0,"CH2":0,"CH3":0,"CH4":0,"CH5":0,"CH6":0}
 ```
 
 查询当前状态：
 
 ```json
-{"action":"get_state","status":"ok","data":{"CH1":1,"CH2":0,"CH3":1,"CH4":0,"CH5":0,"CH6":0}}
+{"CH1":1,"CH2":0,"CH3":1,"CH4":0,"CH5":0,"CH6":0}
 ```
 
 错误返回示例（非法指令）：
 
 ```json
-{"action":"set","status":"error","reason":"invalid_json","data":{"CH1":0,"CH2":0,"CH3":0,"CH4":0,"CH5":0,"CH6":0}}
+{"error":"invalid_json","CH1":0,"CH2":0,"CH3":0,"CH4":0,"CH5":0,"CH6":0}
 ```
 
 如果设备连续 60 秒没有收到 MQTT 控制消息，也会再次发布在线心跳：

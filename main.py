@@ -182,18 +182,24 @@ def mqtt_publish_online(client, reason="heartbeat"):
 
 def mqtt_publish_state_snapshot(client, reason="state"):
     print("State snapshot:", reason)
-    payload = '{"data":%s}' % get_relay_states_payload()
+    payload = get_relay_states_payload()
     return mqtt_publish(client, MQTT_PUB_TOPIC, payload, retain=True, qos=MQTT_PUB_QOS)
 
 def mqtt_publish_control_reply(client, action, ok=True, reason=None):
-    status = "ok" if ok else "error"
-    payload = '{{"action":"{0}","status":"{1}","data":{2}}}'.format(
-        action, status, get_relay_states_payload()
-    )
-    if reason is not None:
-        payload = '{{"action":"{0}","status":"{1}","reason":"{2}","data":{3}}}'.format(
-            action, status, reason, get_relay_states_payload()
+    if ok:
+        payload = get_relay_states_payload()
+    else:
+        reason_text = reason if reason is not None else "error"
+        payload = '{{"error":"{}","CH1":{},"CH2":{},"CH3":{},"CH4":{},"CH5":{},"CH6":{}}}'.format(
+            reason_text,
+            RELAYS[0].value(),
+            RELAYS[1].value(),
+            RELAYS[2].value(),
+            RELAYS[3].value(),
+            RELAYS[4].value(),
+            RELAYS[5].value(),
         )
+    _ = action
     return mqtt_publish(client, MQTT_PUB_TOPIC, payload, retain=True, qos=MQTT_PUB_QOS)
     
 # Callback function that runs when you receive a message on subscribed topic
